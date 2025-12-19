@@ -1,0 +1,89 @@
+::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+:: MODÈLE CONCEPTUEL DE DONNÉES MERISE - SYSTÈME HOSPITALIER
+:: Format Mocodo - Visualisation MCD Entité-Relation
+:: Auteur: Projet Hopital BDD | Date: 19/12/2025
+::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+:: ============================================================================
+:: DISPOSITION DU MCD (Grille 8x6)
+:: ============================================================================
+
+:                       BLOC_OPERATOIRE                 :                       ACTE_MEDICAL
+:                       :SE_DEROULE:1,1                  COMPREND:0,n           :0,n
+PERSONNEL               HERITAGE:XT                     INTERVENTION            :1,n                    :
+:1,1                    :                               :1,n                    FACTURE:0,n             :
+EST_MEDECIN:0,1         EST_INFIRMIER:0,1               CONCERNE:0,n            :                       SEJOUR
+MEDECIN                 INFIRMIER                       :                       :0,n                    :1,n
+:0,n                    :0,n                            :                       :                       OCCUPE:1,1
+DIRIGE:0,1              AFFECTE_A:0,n                   :                       :                       :0,n
+SERVICE                 :0,n                            :                       :                       LIT
+:1,n                    :                               :                       :                       :1,1
+CONTIENT:1,1            :                               :                       :                       APPARTIENT:1,n
+CHAMBRE                 :                               :                       PATIENT                 :
+:1,n                    :                               PRESCRIPTION            :1,n                    CHAMBRE
+POSSEDE:1,1             :                               :0,n                    EFFECTUE:0,n            :
+:                       :                               REDIGE:1,1              :                       :
+:                       :                               MEDECIN                 CONSULTATION            :
+
+:: ============================================================================
+:: DÉFINITION DES ENTITÉS (13 entités)
+:: ============================================================================
+
+PATIENT: _IPP, nom, prenom, date_naissance, sexe, num_secu, telephone, adresse, antecedents
+PERSONNEL: _id_personnel, nom, prenom, date_naissance, date_embauche, telephone, type_contrat, actif
+MEDECIN: _RPPS, specialite, id_service_principal
+INFIRMIER: _id_infirmier, grade
+SERVICE: _id_service, nom_service, batiment, etage, specialite, RPPS_chef, telephone_service
+CHAMBRE: _id_chambre, numero_chambre, capacite, type_chambre
+LIT: _id_lit, numero_lit, etat, type_lit, equipements
+SEJOUR: _IEP, date_admission, date_sortie, motif_admission, mode_entree, mode_sortie, diagnostic_principal
+CONSULTATION: _id_consultation, date_heure, motif, diagnostic, statut
+PRESCRIPTION: _id_prescription, date_prescription, medicament, posologie, voie_administration, date_debut, date_fin, statut
+ACTE_MEDICAL: _code_CCAM, libelle, tarif, categorie, duree_moyenne
+INTERVENTION: _id_intervention, date_intervention, heure_debut, heure_fin, type_intervention, compte_rendu, statut
+BLOC_OPERATOIRE: _id_bloc, nom_bloc, batiment, etage, equipements, statut
+
+:: ============================================================================
+:: DÉFINITION DES ASSOCIATIONS (4 associations N-N + relations)
+:: ============================================================================
+
+:: ASSOCIATION N-N : OCCUPE (SEJOUR ↔ LIT)
+OCCUPE, 1N SEJOUR, 11 LIT: date_debut, date_fin, motif_changement
+
+:: ASSOCIATION N-N : AFFECTE_A (INFIRMIER ↔ SERVICE)
+AFFECTE_A, 0N INFIRMIER, 0N SERVICE: date_debut, date_fin, taux_activite
+
+:: ASSOCIATION N-N : FACTURE (SEJOUR ↔ ACTE_MEDICAL)
+FACTURE, 0N SEJOUR, 0N ACTE_MEDICAL: quantite, date_realisation, montant_total, statut_facturation
+
+:: ASSOCIATION N-N : COMPREND (INTERVENTION ↔ ACTE_MEDICAL)
+COMPREND, 1N INTERVENTION, 1N ACTE_MEDICAL: ordre, duree_estimee
+
+:: ============================================================================
+:: HÉRITAGE EXCLUSIF : PERSONNEL → MEDECIN XOR INFIRMIER
+:: ============================================================================
+
+:: Type d'héritage : Exclusif total (XT)
+:: Un PERSONNEL est SOIT un MEDECIN, SOIT un INFIRMIER (jamais les deux)
+HERITAGE, /XT\ PERSONNEL, MEDECIN
+HERITAGE, /XT\ PERSONNEL, INFIRMIER
+
+:: ============================================================================
+:: CARDINALITÉS MERISE
+:: ============================================================================
+
+:: PATIENT (1,N) --- effectue --- (0,N) CONSULTATION
+:: PATIENT (1,N) --- a --- (1,1) SEJOUR
+:: SEJOUR (1,1) --- occupe --- (0,N) LIT
+:: SEJOUR (0,N) --- facture --- (0,N) ACTE_MEDICAL
+:: MEDECIN (1,1) --- realise --- (0,N) CONSULTATION
+:: MEDECIN (1,1) --- prescrit --- (0,N) PRESCRIPTION
+:: MEDECIN (0,1) --- dirige --- (1,1) SERVICE
+:: MEDECIN (0,N) --- opere --- (0,N) INTERVENTION
+:: INFIRMIER (0,N) --- affecte_a --- (0,N) SERVICE
+:: SERVICE (1,N) --- contient --- (1,1) CHAMBRE
+:: CHAMBRE (1,N) --- possede --- (1,1) LIT
+:: INTERVENTION (1,N) --- comprend --- (1,N) ACTE_MEDICAL
+:: INTERVENTION (0,N) --- se_deroule --- (1,1) BLOC_OPERATOIRE
+:: SEJOUR (0,N) --- concerne --- (0,N) INTERVENTION
+:: SEJOUR (0,N) --- a --- (0,N) PRESCRIPTION

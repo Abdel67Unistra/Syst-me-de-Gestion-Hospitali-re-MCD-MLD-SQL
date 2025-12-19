@@ -1,0 +1,31 @@
+PATIENT: IPP, nom, prenom, date_naissance, sexe, num_secu, telephone, adresse, antecedents
+SEJOUR: IEP, date_admission, date_sortie, motif, mode_entree, mode_sortie, diagnostic
+CONSULTATION: id_consultation, date_heure, motif, diagnostic, compte_rendu, statut
+PRESCRIPTION: id_prescription, date_prescription, medicament, posologie, voie, statut, date_debut, date_fin
+INTERVENTION: id_intervention, date_intervention, heure_debut, heure_fin, type, compte_rendu, statut
+ACTE_MEDICAL: code_CCAM, libelle, tarif, categorie, duree_moyenne
+BLOC_OPERATOIRE: id_bloc, nom_bloc, batiment, etage, equipements, statut
+MEDECIN: RPPS, specialite, est_chef
+PERSONNEL: id_personnel, nom, prenom, date_naissance, date_embauche, telephone, type_contrat, actif
+INFIRMIER: id_infirmier, grade, diplome
+LIT: id_lit, numero_lit, etat, type_lit, equipements
+CHAMBRE: id_chambre, numero_chambre, capacite, type_chambre
+SERVICE: id_service, nom_service, batiment, etage, specialite, telephone_service
+
+PATIENT, _1 S'OCCUPE_DE _0N, SEJOUR
+SEJOUR, _0N FACTURE _0N, ACTE_MEDICAL: quantite, date_realisation, statut_facturation
+PATIENT, _1 POUR _0N, CONSULTATION
+CONSULTATION, _0N CONSULTE _0N, MEDECIN
+SEJOUR, _0N CONCERNE _0N, PRESCRIPTION
+PRESCRIPTION, _0N PRESCRIT _0N, MEDECIN
+INTERVENTION, _0N COMPREND _0N, ACTE_MEDICAL: ordre, duree_estimee
+SEJOUR, _0N LIEE_A _0N, INTERVENTION
+INTERVENTION, _0N OPERE _0N, MEDECIN
+BLOC_OPERATOIRE, _1 DANS _0N, INTERVENTION
+MEDECIN, _0,1 EST_UN _1, PERSONNEL
+SEJOUR, _0N OCCUPE _0N, LIT: date_debut, date_fin, motif_changement
+CHAMBRE, _1N POSSEDE _1, LIT
+SERVICE, _1N CONTIENT _1, CHAMBRE
+MEDECIN, _0,1 TRAVAILLE_DANS _0N, SERVICE
+INFIRMIER, _0N AFFECTE_A _0N, SERVICE: date_debut, date_fin, taux_activite
+INFIRMIER, _0,1 EST_UN_BIS _1, PERSONNEL
