@@ -430,5 +430,146 @@ JOIN PERSONNEL pe ON m.id_personnel = pe.id_personnel
 WHERE pr.statut = 'Active'
 ORDER BY pr.date_debut DESC;
 
+-- ============================================================================
+-- REQUÊTES STATISTIQUES (pour M1 Statistique)
+-- ============================================================================
+
+-- 6. Distribution des patients par tranche d'âge et sexe (pyramide des âges)
+SELECT 
+    CASE 
+        WHEN TIMESTAMPDIFF(YEAR, date_naissance, CURDATE()) < 18 THEN '0-17 ans'
+        WHEN TIMESTAMPDIFF(YEAR, date_naissance, CURDATE()) BETWEEN 18 AND 30 THEN '18-30 ans'
+        WHEN TIMESTAMPDIFF(YEAR, date_naissance, CURDATE()) BETWEEN 31 AND 45 THEN '31-45 ans'
+        WHEN TIMESTAMPDIFF(YEAR, date_naissance, CURDATE()) BETWEEN 46 AND 60 THEN '46-60 ans'
+        WHEN TIMESTAMPDIFF(YEAR, date_naissance, CURDATE()) BETWEEN 61 AND 75 THEN '61-75 ans'
+        ELSE '75+ ans'
+    END AS tranche_age,
+    sexe,
+    COUNT(*) AS effectif,
+    ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM PATIENT), 2) AS pourcentage
+FROM PATIENT
+GROUP BY tranche_age, sexe
+ORDER BY tranche_age, sexe;
+
+-- 7. Statistiques descriptives des durées de séjour par service
+SELECT 
+    sv.nom_service,
+    COUNT(s.IEP) AS n,
+    ROUND(AVG(DATEDIFF(COALESCE(s.date_sortie, NOW()), s.date_admission)), 2) AS moyenne,
+    ROUND(STDDEV(DATEDIFF(COALESCE(s.date_sortie, NOW()), s.date_admission)), 2) AS ecart_type,
+    MIN(DATEDIFF(COALESCE(s.date_sortie, NOW()), s.date_admission)) AS minimum,
+    MAX(DATEDIFF(COALESCE(s.date_sortie, NOW()), s.date_admission)) AS maximum,
+    ROUND(VAR_POP(DATEDIFF(COALESCE(s.date_sortie, NOW()), s.date_admission)), 2) AS variance
+FROM SEJOUR s
+JOIN OCCUPE o ON s.IEP = o.IEP_sejour
+JOIN LIT l ON o.id_lit = l.id_lit
+JOIN CHAMBRE c ON l.id_chambre = c.id_chambre
+JOIN SERVICE sv ON c.id_service = sv.id_service
+GROUP BY sv.id_service, sv.nom_service
+HAVING n >= 1;
+
+-- 8. Taux d'occupation mensuel (série temporelle)
+SELECT 
+    DATE_FORMAT(o.date_debut, '%Y-%m') AS mois,
+    COUNT(DISTINCT o.id_lit) AS lits_utilises,
+    (SELECT COUNT(*) FROM LIT) AS total_lits,
+    ROUND(COUNT(DISTINCT o.id_lit) * 100.0 / (SELECT COUNT(*) FROM LIT), 2) AS taux_occupation_pct
+FROM OCCUPE o
+GROUP BY mois
+ORDER BY mois;
+
+-- 9. Répartition des modes d'entrée (distribution de fréquences)
+SELECT 
+    mode_entree,
+    COUNT(*) AS effectif,
+    ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 2) AS frequence_relative,
+    SUM(COUNT(*)) OVER(ORDER BY COUNT(*) DESC) AS effectif_cumule
+FROM SEJOUR
+GROUP BY mode_entree
+ORDER BY effectif DESC;
+
+-- 10. Analyse de la charge de travail par médecin (consultations + prescriptions)
+SELECT 
+    m.RPPS,
+    CONCAT(p.nom, ' ', p.prenom) AS medecin,
+    m.specialite,
+    COUNT(DISTINCT c.id_consultation) AS nb_consultations,
+    COUNT(DISTINCT pr.id_prescription) AS nb_prescriptions,
+    COUNT(DISTINCT c.id_consultation) + COUNT(DISTINCT pr.id_prescription) AS charge_totale,
+    ROUND(AVG(COUNT(DISTINCT c.id_consultation)) OVER(), 2) AS moyenne_consultations_globale
+FROM MEDECIN m
+JOIN PERSONNEL p ON m.id_personnel = p.id_personnel
+LEFT JOIN CONSULTATION c ON m.RPPS = c.RPPS_medecin
+LEFT JOIN PRESCRIPTION pr ON m.RPPS = pr.RPPS_medecin
+GROUP BY m.RPPS, p.nom, p.prenom, m.specialite
+ORDER BY charge_totale DESC;
+
+-- 11. Corrélation entre durée de séjour et nombre d'actes facturés
+SELECT 
+    s.IEP,
+    DATEDIFF(COALESCE(s.date_sortie, NOW()), s.date_admission) AS duree_sejour,
+    COUNT(f.id_facturation) AS nb_actes,
+    SUM(f.montant_total) AS montant_total,
+    ROUND(SUM(f.montant_total) / DATEDIFF(COALESCE(s.date_sortie, NOW()), s.date_admission), 2) AS cout_journalier
+FROM SEJOUR s
+LEFT JOIN FACTURE f ON s.IEP = f.IEP_sejour
+GROUP BY s.IEP, s.date_admission, s.date_sortie
+HAVING duree_sejour > 0;
+
+-- 12. Distribution des actes médicaux par catégorie (diagramme en secteurs)
+SELECT 
+    a.categorie,
+    COUNT(f.id_facturation) AS nb_actes_realises,
+    SUM(f.montant_total) AS chiffre_affaires,
+    ROUND(COUNT(f.id_facturation) * 100.0 / SUM(COUNT(f.id_facturation)) OVER(), 2) AS pct_actes,
+    ROUND(SUM(f.montant_total) * 100.0 / SUM(SUM(f.montant_total)) OVER(), 2) AS pct_ca
+FROM ACTE_MEDICAL a
+LEFT JOIN FACTURE f ON a.code_CCAM = f.code_CCAM
+GROUP BY a.categorie
+ORDER BY chiffre_affaires DESC;
+
+-- 13. Analyse temporelle des admissions (saisonnalité)
+SELECT 
+    DAYNAME(date_admission) AS jour_semaine,
+    DAYOFWEEK(date_admission) AS num_jour,
+    COUNT(*) AS nb_admissions,
+    ROUND(AVG(COUNT(*)) OVER(), 2) AS moyenne_journaliere
+FROM SEJOUR
+GROUP BY jour_semaine, num_jour
+ORDER BY num_jour;
+
+-- 14. Indicateurs de performance par service (tableau de bord)
+SELECT 
+    sv.nom_service,
+    COUNT(DISTINCT s.IEP) AS nb_sejours,
+    COUNT(DISTINCT s.IPP) AS nb_patients_uniques,
+    ROUND(AVG(DATEDIFF(COALESCE(s.date_sortie, NOW()), s.date_admission)), 1) AS dms,
+    SUM(CASE WHEN s.mode_entree = 'Urgence' THEN 1 ELSE 0 END) AS admissions_urgence,
+    ROUND(SUM(CASE WHEN s.mode_entree = 'Urgence' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1) AS pct_urgences,
+    COALESCE(SUM(f.montant_total), 0) AS recettes_totales
+FROM SERVICE sv
+LEFT JOIN CHAMBRE c ON sv.id_service = c.id_service
+LEFT JOIN LIT l ON c.id_chambre = l.id_chambre
+LEFT JOIN OCCUPE o ON l.id_lit = o.id_lit
+LEFT JOIN SEJOUR s ON o.IEP_sejour = s.IEP
+LEFT JOIN FACTURE f ON s.IEP = f.IEP_sejour
+GROUP BY sv.id_service, sv.nom_service
+ORDER BY recettes_totales DESC;
+
+-- 15. Comparaison avant/après (exemple : évolution sur 2 périodes)
+SELECT 
+    'Période 1' AS periode,
+    COUNT(*) AS nb_sejours,
+    ROUND(AVG(DATEDIFF(COALESCE(date_sortie, NOW()), date_admission)), 2) AS dms
+FROM SEJOUR
+WHERE date_admission < '2025-12-15'
+UNION ALL
+SELECT 
+    'Période 2' AS periode,
+    COUNT(*) AS nb_sejours,
+    ROUND(AVG(DATEDIFF(COALESCE(date_sortie, NOW()), date_admission)), 2) AS dms
+FROM SEJOUR
+WHERE date_admission >= '2025-12-15';
+
 -- Fin du script
 
