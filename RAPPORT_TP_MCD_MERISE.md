@@ -123,6 +123,39 @@ J'ai 4 associations qui nécessitent des tables intermédiaires :
 - Une intervention peut comprendre plusieurs actes
 - Attribut : ordre (pour la séquence des actes)
 
+### Association réflexive
+
+J'ai ajouté une association réflexive pour modéliser la hiérarchie du personnel :
+
+**SUPERVISE** (entre PERSONNEL et PERSONNEL)
+- Un membre du personnel peut superviser d'autres membres du personnel
+- Cardinalités : 0,1 (superviseur) — 0,N (supervisés)
+- Un personnel a au plus un superviseur à un instant donné
+- Un superviseur peut avoir plusieurs personnes sous sa responsabilité
+- Attributs : date_debut, date_fin (pour l'historique)
+
+```
+         PERSONNEL
+            ↑ |
+   supervise | | est supervisé par
+    (0,N)    | |    (0,1)
+            ↓ |
+         PERSONNEL
+```
+
+En SQL, cela donne une table avec deux clés étrangères vers la même table :
+
+```sql
+CREATE TABLE SUPERVISE (
+    id_supervision INT PRIMARY KEY,
+    id_superviseur INT NOT NULL,  -- FK vers PERSONNEL
+    id_supervise INT NOT NULL,    -- FK vers PERSONNEL
+    date_debut DATE NOT NULL,
+    date_fin DATE NULL,
+    CHECK (id_superviseur != id_supervise)  -- On ne peut pas se superviser soi-même
+);
+```
+
 ### Contraintes du MCD
 
 Voici toutes les contraintes que j'ai identifiées et que le modèle doit respecter :

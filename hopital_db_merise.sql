@@ -55,6 +55,7 @@ CREATE TABLE INFIRMIER (
     id_infirmier INT AUTO_INCREMENT PRIMARY KEY,
     id_personnel INT NOT NULL UNIQUE,
     grade ENUM('IDE', 'IBODE', 'IADE') NOT NULL,
+    diplome VARCHAR(100),
     FOREIGN KEY (id_personnel) REFERENCES PERSONNEL(id_personnel) ON DELETE CASCADE
 ) ENGINE=InnoDB COMMENT='Infirmiers - Héritage PERSONNEL';
 
@@ -202,6 +203,22 @@ CREATE TABLE AFFECTE_A (
     CHECK (taux_activite > 0 AND taux_activite <= 100)
 ) ENGINE=InnoDB COMMENT='Association INFIRMIER-SERVICE (rotation)';
 
+-- Association réflexive : SUPERVISE (PERSONNEL -> PERSONNEL)
+CREATE TABLE SUPERVISE (
+    id_supervision INT AUTO_INCREMENT PRIMARY KEY,
+    id_superviseur INT NOT NULL COMMENT 'Le personnel qui supervise',
+    id_supervise INT NOT NULL COMMENT 'Le personnel supervisé',
+    date_debut DATE NOT NULL,
+    date_fin DATE NULL,
+    FOREIGN KEY (id_superviseur) REFERENCES PERSONNEL(id_personnel) ON DELETE CASCADE,
+    FOREIGN KEY (id_supervise) REFERENCES PERSONNEL(id_personnel) ON DELETE CASCADE,
+    INDEX idx_superviseur (id_superviseur),
+    INDEX idx_supervise (id_supervise),
+    CHECK (date_fin IS NULL OR date_fin >= date_debut),
+    CHECK (id_superviseur != id_supervise),
+    UNIQUE (id_supervise, date_debut) COMMENT 'Un personnel a un seul superviseur à un instant donné'
+) ENGINE=InnoDB COMMENT='Association réflexive - Hiérarchie du personnel';
+
 CREATE TABLE FACTURE (
     id_facturation INT AUTO_INCREMENT PRIMARY KEY,
     IEP_sejour VARCHAR(20) NOT NULL,
@@ -328,7 +345,7 @@ INSERT INTO MEDECIN (RPPS, id_personnel, specialite) VALUES
 ('11111111111', 1, 'Cardiologie'),
 ('22222222222', 2, 'Chirurgie Générale');
 
-INSERT INTO INFIRMIER (id_personnel, grade) VALUES (3, 'IDE');
+INSERT INTO INFIRMIER (id_personnel, grade, diplome) VALUES (3, 'IDE', 'Diplôme d''État Infirmier 2010');
 
 INSERT INTO BLOC_OPERATOIRE (nom_bloc, batiment, etage) VALUES
 ('Bloc 1', 'Bâtiment A', 3),
@@ -340,6 +357,10 @@ INSERT INTO SERVICE (nom_service, batiment, etage, specialite, RPPS_chef) VALUES
 
 UPDATE MEDECIN SET id_service_principal = 1 WHERE RPPS = '11111111111';
 UPDATE MEDECIN SET id_service_principal = 2 WHERE RPPS = '22222222222';
+
+-- Association réflexive : Le médecin 1 (chef cardio) supervise l'infirmier 3
+INSERT INTO SUPERVISE (id_superviseur, id_supervise, date_debut) VALUES
+(1, 3, '2020-01-01');
 
 INSERT INTO CHAMBRE (id_service, numero_chambre, capacite, type_chambre) VALUES
 (1, '101', 1, 'Individuelle'),
@@ -570,6 +591,45 @@ SELECT
     ROUND(AVG(DATEDIFF(COALESCE(date_sortie, NOW()), date_admission)), 2) AS dms
 FROM SEJOUR
 WHERE date_admission >= '2025-12-15';
+
+-- 16. Requête sur l'association réflexive : Hiérarchie du personnel
+SELECT 
+    sup.id_personnel AS id_superviseur,
+    CONCAT(sup.nom, ' ', sup.prenom) AS superviseur,
+    CASE 
+        WHEN m.RPPS IS NOT NULL THEN 'Médecin'
+        WHEN i.id_infirmier IS NOT NULL THEN 'Infirmier'
+        ELSE 'Autre'
+    END AS type_superviseur,
+    sub.id_personnel AS id_supervise,
+    CONCAT(sub.nom, ' ', sub.prenom) AS supervise,
+    CASE 
+        WHEN m2.RPPS IS NOT NULL THEN 'Médecin'
+        WHEN i2.id_infirmier IS NOT NULL THEN 'Infirmier'
+        ELSE 'Autre'
+    END AS type_supervise,
+    s.date_debut,
+    s.date_fin
+FROM SUPERVISE s
+JOIN PERSONNEL sup ON s.id_superviseur = sup.id_personnel
+JOIN PERSONNEL sub ON s.id_supervise = sub.id_personnel
+LEFT JOIN MEDECIN m ON sup.id_personnel = m.id_personnel
+LEFT JOIN INFIRMIER i ON sup.id_personnel = i.id_personnel
+LEFT JOIN MEDECIN m2 ON sub.id_personnel = m2.id_personnel
+LEFT JOIN INFIRMIER i2 ON sub.id_personnel = i2.id_personnel
+WHERE s.date_fin IS NULL
+ORDER BY superviseur, supervise;
+
+-- 17. Nombre de personnes supervisées par superviseur (span of control)
+SELECT 
+    sup.id_personnel,
+    CONCAT(sup.nom, ' ', sup.prenom) AS superviseur,
+    COUNT(s.id_supervise) AS nb_supervises
+FROM PERSONNEL sup
+LEFT JOIN SUPERVISE s ON sup.id_personnel = s.id_superviseur AND s.date_fin IS NULL
+GROUP BY sup.id_personnel, sup.nom, sup.prenom
+HAVING nb_supervises > 0
+ORDER BY nb_supervises DESC;
 
 -- Fin du script
 

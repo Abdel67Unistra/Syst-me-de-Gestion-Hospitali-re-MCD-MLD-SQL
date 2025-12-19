@@ -26,7 +26,7 @@ OPERE, 0N MEDECIN, 11 INTERVENTION
 DANS, 0N BLOC_OPERATOIRE, 11 INTERVENTION
 BLOC_OPERATOIRE: id_bloc, nom_bloc, batiment, etage, equipements, statut
 :
-MEDECIN: RPPS, specialite, est_chef
+MEDECIN: RPPS, specialite
 EST UN, 11 MEDECIN, 10 PERSONNEL
 
 OCCUPE, 0N SEJOUR, 0N LIT: date_debut, date_fin, motif_changement
@@ -39,8 +39,8 @@ CHAMBRE: id_chambre, numero_chambre, capacite, type_chambre
 CONTIENT, 1N SERVICE, 11 CHAMBRE
 SERVICE: id_service, nom_service, batiment, etage, specialite, telephone_service
 TRAVAILLE DANS, 01 MEDECIN, 0N SERVICE
+SUPERVISE, 01 PERSONNEL, 0N PERSONNEL: date_debut, date_fin
 PERSONNEL: id_personnel, nom, prenom, date_naissance, date_embauche, telephone, type_contrat, actif
-:
 
 :
 AFFECTE A, 0N INFIRMIER, 0N SERVICE: date_debut, date_fin, taux_activite
