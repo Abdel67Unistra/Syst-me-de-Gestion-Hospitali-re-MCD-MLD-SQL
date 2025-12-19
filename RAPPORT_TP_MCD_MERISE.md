@@ -435,47 +435,285 @@ Si je devais améliorer le projet, j'ajouterais probablement :
 
 ### Requêtes de test
 
-Voici les 5 requêtes avec jointures demandées dans l'énoncé :
+Voici des requêtes avancées utilisant différentes techniques SQL : jointures multiples, sous-requêtes, sous-sous-requêtes, agrégations et fonctions de fenêtrage.
+
+#### Requêtes avec jointures multiples
 
 ```sql
--- 1. Lits disponibles en cardiologie
-SELECT l.id_lit, l.numero_lit, c.numero_chambre, s.nom_service
+-- 1. Parcours complet d'un patient : séjours, lits, services, médecins
+-- Utilise 7 jointures pour reconstituer tout le parcours
+SELECT 
+    p.IPP, CONCAT(p.nom, ' ', p.prenom) AS patient,
+    s.IEP, s.date_admission, s.date_sortie,
+    sv.nom_service, c.numero_chambre, l.numero_lit,
+    CONCAT(pe.nom, ' ', pe.prenom) AS medecin_traitant,
+    m.specialite
+FROM PATIENT p
+JOIN SEJOUR s ON p.IPP = s.IPP
+LEFT JOIN OCCUPE o ON s.IEP = o.IEP_sejour AND o.date_fin IS NULL
+LEFT JOIN LIT l ON o.id_lit = l.id_lit
+LEFT JOIN CHAMBRE c ON l.id_chambre = c.id_chambre
+LEFT JOIN SERVICE sv ON c.id_service = sv.id_service
+LEFT JOIN CONSULTATION cs ON p.IPP = cs.IPP_patient
+LEFT JOIN MEDECIN m ON cs.RPPS_medecin = m.RPPS
+LEFT JOIN PERSONNEL pe ON m.id_personnel = pe.id_personnel
+WHERE p.IPP = 'PAT001';
+
+-- 2. Activité complète d'un médecin avec hiérarchie (association réflexive)
+SELECT 
+    CONCAT(p.nom, ' ', p.prenom) AS medecin,
+    m.RPPS, m.specialite,
+    sv.nom_service AS service_principal,
+    CONCAT(sup.nom, ' ', sup.prenom) AS superviseur,
+    COUNT(DISTINCT c.id_consultation) AS nb_consultations,
+    COUNT(DISTINCT pr.id_prescription) AS nb_prescriptions,
+    COUNT(DISTINCT i.id_intervention) AS nb_interventions
+FROM MEDECIN m
+JOIN PERSONNEL p ON m.id_personnel = p.id_personnel
+LEFT JOIN SERVICE sv ON m.id_service_principal = sv.id_service
+LEFT JOIN SUPERVISE s ON p.id_personnel = s.id_supervise AND s.date_fin IS NULL
+LEFT JOIN PERSONNEL sup ON s.id_superviseur = sup.id_personnel
+LEFT JOIN CONSULTATION c ON m.RPPS = c.RPPS_medecin
+LEFT JOIN PRESCRIPTION pr ON m.RPPS = pr.RPPS_medecin
+LEFT JOIN INTERVENTION i ON m.RPPS = i.RPPS_chirurgien
+GROUP BY m.RPPS, p.nom, p.prenom, m.specialite, sv.nom_service, sup.nom, sup.prenom;
+```
+
+#### Requêtes avec sous-requêtes simples
+
+```sql
+-- 3. Patients ayant séjourné plus longtemps que la moyenne
+SELECT 
+    p.IPP, CONCAT(p.nom, ' ', p.prenom) AS patient,
+    s.IEP, 
+    DATEDIFF(COALESCE(s.date_sortie, NOW()), s.date_admission) AS duree_sejour,
+    (SELECT ROUND(AVG(DATEDIFF(COALESCE(date_sortie, NOW()), date_admission)), 1) 
+     FROM SEJOUR) AS moyenne_globale
+FROM PATIENT p
+JOIN SEJOUR s ON p.IPP = s.IPP
+WHERE DATEDIFF(COALESCE(s.date_sortie, NOW()), s.date_admission) > (
+    SELECT AVG(DATEDIFF(COALESCE(date_sortie, NOW()), date_admission)) 
+    FROM SEJOUR
+);
+
+-- 4. Services dont le taux d'occupation dépasse la moyenne hospitalière
+SELECT 
+    sv.nom_service,
+    COUNT(CASE WHEN l.etat = 'Occupé' THEN 1 END) AS lits_occupes,
+    COUNT(l.id_lit) AS total_lits,
+    ROUND(COUNT(CASE WHEN l.etat = 'Occupé' THEN 1 END) * 100.0 / COUNT(l.id_lit), 1) AS taux_occupation
+FROM SERVICE sv
+JOIN CHAMBRE c ON sv.id_service = c.id_service
+JOIN LIT l ON c.id_chambre = l.id_chambre
+GROUP BY sv.id_service, sv.nom_service
+HAVING taux_occupation > (
+    SELECT ROUND(SUM(CASE WHEN etat = 'Occupé' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1)
+    FROM LIT
+);
+
+-- 5. Médecins n'ayant pas fait de consultation ce mois-ci (NOT IN)
+SELECT m.RPPS, CONCAT(p.nom, ' ', p.prenom) AS medecin, m.specialite
+FROM MEDECIN m
+JOIN PERSONNEL p ON m.id_personnel = p.id_personnel
+WHERE m.RPPS NOT IN (
+    SELECT DISTINCT RPPS_medecin 
+    FROM CONSULTATION 
+    WHERE MONTH(date_heure) = MONTH(NOW()) AND YEAR(date_heure) = YEAR(NOW())
+);
+```
+
+#### Requêtes avec sous-sous-requêtes (imbriquées)
+
+```sql
+-- 6. Patients dont le coût total dépasse la moyenne des patients ayant plus de 2 actes
+SELECT 
+    p.IPP, CONCAT(p.nom, ' ', p.prenom) AS patient,
+    total_patient.cout_total
+FROM PATIENT p
+JOIN (
+    SELECT s.IPP, SUM(f.montant_total) AS cout_total
+    FROM SEJOUR s
+    JOIN FACTURE f ON s.IEP = f.IEP_sejour
+    GROUP BY s.IPP
+) AS total_patient ON p.IPP = total_patient.IPP
+WHERE total_patient.cout_total > (
+    SELECT AVG(cout_patient)
+    FROM (
+        SELECT s.IPP, SUM(f.montant_total) AS cout_patient
+        FROM SEJOUR s
+        JOIN FACTURE f ON s.IEP = f.IEP_sejour
+        GROUP BY s.IPP
+        HAVING COUNT(f.id_facturation) > 2
+    ) AS sous_requete
+);
+
+-- 7. Services ayant un taux d'occupation supérieur à celui du service le plus chargé en urgences
+SELECT sv.nom_service, taux.taux_occupation
+FROM SERVICE sv
+JOIN (
+    SELECT c.id_service,
+           ROUND(SUM(CASE WHEN l.etat = 'Occupé' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1) AS taux_occupation
+    FROM CHAMBRE c
+    JOIN LIT l ON c.id_chambre = l.id_chambre
+    GROUP BY c.id_service
+) AS taux ON sv.id_service = taux.id_service
+WHERE taux.taux_occupation >= (
+    SELECT MAX(taux_occ)
+    FROM (
+        SELECT c.id_service,
+               ROUND(SUM(CASE WHEN l.etat = 'Occupé' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1) AS taux_occ
+        FROM CHAMBRE c
+        JOIN LIT l ON c.id_chambre = l.id_chambre
+        JOIN SEJOUR s ON EXISTS (
+            SELECT 1 FROM OCCUPE o WHERE o.id_lit = l.id_lit AND o.IEP_sejour = s.IEP
+        )
+        WHERE s.mode_entree = 'Urgence'
+        GROUP BY c.id_service
+    ) AS services_urgence
+);
+
+-- 8. Hiérarchie complète : qui supervise qui avec niveau de profondeur
+SELECT 
+    niveau1.superviseur AS chef,
+    niveau1.supervise AS subordonné_direct,
+    niveau2.supervise AS subordonné_indirect
+FROM (
+    SELECT 
+        CONCAT(sup.nom, ' ', sup.prenom) AS superviseur,
+        CONCAT(sub.nom, ' ', sub.prenom) AS supervise,
+        sub.id_personnel AS id_supervise
+    FROM SUPERVISE s
+    JOIN PERSONNEL sup ON s.id_superviseur = sup.id_personnel
+    JOIN PERSONNEL sub ON s.id_supervise = sub.id_personnel
+    WHERE s.date_fin IS NULL
+) AS niveau1
+LEFT JOIN (
+    SELECT 
+        s.id_superviseur,
+        CONCAT(sub.nom, ' ', sub.prenom) AS supervise
+    FROM SUPERVISE s
+    JOIN PERSONNEL sub ON s.id_supervise = sub.id_personnel
+    WHERE s.date_fin IS NULL
+) AS niveau2 ON niveau1.id_supervise = niveau2.id_superviseur;
+```
+
+#### Requêtes avec EXISTS et corrélation
+
+```sql
+-- 9. Patients ayant eu au moins une intervention ET une prescription (EXISTS corrélé)
+SELECT DISTINCT p.IPP, CONCAT(p.nom, ' ', p.prenom) AS patient
+FROM PATIENT p
+WHERE EXISTS (
+    SELECT 1 FROM SEJOUR s
+    JOIN INTERVENTION i ON s.IEP = i.IEP_sejour
+    WHERE s.IPP = p.IPP
+)
+AND EXISTS (
+    SELECT 1 FROM SEJOUR s
+    JOIN PRESCRIPTION pr ON s.IEP = pr.IEP_sejour
+    WHERE s.IPP = p.IPP
+);
+
+-- 10. Lits jamais occupés depuis leur création (NOT EXISTS)
+SELECT l.id_lit, l.numero_lit, c.numero_chambre, sv.nom_service
 FROM LIT l
 JOIN CHAMBRE c ON l.id_chambre = c.id_chambre
-JOIN SERVICE s ON c.id_service = s.id_service
-WHERE l.etat = 'Disponible' AND s.nom_service = 'Cardiologie';
+JOIN SERVICE sv ON c.id_service = sv.id_service
+WHERE NOT EXISTS (
+    SELECT 1 FROM OCCUPE o WHERE o.id_lit = l.id_lit
+);
+```
 
--- 2. Médecin avec le plus de consultations
-SELECT m.RPPS, p.nom, p.prenom, COUNT(c.id_consultation) AS nb_consultations
+#### Requêtes avec fonctions de fenêtrage (analytiques)
+
+```sql
+-- 11. Classement des médecins par nombre d'actes avec rang et percentile
+SELECT 
+    CONCAT(p.nom, ' ', p.prenom) AS medecin,
+    m.specialite,
+    COUNT(c.id_consultation) AS nb_consultations,
+    RANK() OVER (ORDER BY COUNT(c.id_consultation) DESC) AS rang,
+    PERCENT_RANK() OVER (ORDER BY COUNT(c.id_consultation)) AS percentile
 FROM MEDECIN m
 JOIN PERSONNEL p ON m.id_personnel = p.id_personnel
 LEFT JOIN CONSULTATION c ON m.RPPS = c.RPPS_medecin
-GROUP BY m.RPPS, p.nom, p.prenom
-ORDER BY nb_consultations DESC LIMIT 1;
+GROUP BY m.RPPS, p.nom, p.prenom, m.specialite;
 
--- 3. Tous les séjours d'un patient (IPP = 'PAT001')
-SELECT s.IEP, s.date_admission, s.date_sortie, s.motif_admission
-FROM SEJOUR s
-WHERE s.IPP = 'PAT001'
-ORDER BY s.date_admission DESC;
+-- 12. Évolution du nombre d'admissions avec moyenne mobile sur 7 jours
+SELECT 
+    DATE(date_admission) AS jour,
+    COUNT(*) AS admissions_jour,
+    ROUND(AVG(COUNT(*)) OVER (
+        ORDER BY DATE(date_admission) 
+        ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+    ), 2) AS moyenne_mobile_7j
+FROM SEJOUR
+GROUP BY DATE(date_admission)
+ORDER BY jour;
 
--- 4. Durée moyenne de séjour par service
-SELECT sv.nom_service, 
-       ROUND(AVG(DATEDIFF(COALESCE(s.date_sortie, NOW()), s.date_admission)), 1) AS duree_jours
+-- 13. Comparaison de chaque séjour avec la moyenne de son service
+SELECT 
+    s.IEP,
+    CONCAT(p.nom, ' ', p.prenom) AS patient,
+    sv.nom_service,
+    DATEDIFF(COALESCE(s.date_sortie, NOW()), s.date_admission) AS duree_sejour,
+    ROUND(AVG(DATEDIFF(COALESCE(s.date_sortie, NOW()), s.date_admission)) 
+          OVER (PARTITION BY sv.id_service), 1) AS moyenne_service,
+    DATEDIFF(COALESCE(s.date_sortie, NOW()), s.date_admission) - 
+        AVG(DATEDIFF(COALESCE(s.date_sortie, NOW()), s.date_admission)) 
+        OVER (PARTITION BY sv.id_service) AS ecart_moyenne
 FROM SEJOUR s
+JOIN PATIENT p ON s.IPP = p.IPP
 JOIN OCCUPE o ON s.IEP = o.IEP_sejour
 JOIN LIT l ON o.id_lit = l.id_lit
 JOIN CHAMBRE c ON l.id_chambre = c.id_chambre
-JOIN SERVICE sv ON c.id_service = sv.id_service
-GROUP BY sv.id_service, sv.nom_service;
-
--- 5. Prescriptions actives avec médecin et patient
-SELECT pr.medicament, pr.posologie, CONCAT(pa.nom, ' ', pa.prenom) AS patient,
-       CONCAT(pe.nom, ' ', pe.prenom) AS medecin
-FROM PRESCRIPTION pr
-JOIN SEJOUR s ON pr.IEP_sejour = s.IEP
-JOIN PATIENT pa ON s.IPP = pa.IPP
-JOIN MEDECIN m ON pr.RPPS_medecin = m.RPPS
-JOIN PERSONNEL pe ON m.id_personnel = pe.id_personnel
-WHERE pr.statut = 'Active';
+JOIN SERVICE sv ON c.id_service = sv.id_service;
 ```
+
+#### Requête combinant toutes les techniques
+
+```sql
+-- 14. Tableau de bord complet par service (jointures + sous-requêtes + agrégations + fenêtrage)
+SELECT 
+    sv.nom_service,
+    stats.nb_lits,
+    stats.lits_occupes,
+    stats.taux_occupation,
+    COALESCE(sejours.nb_sejours, 0) AS nb_sejours_mois,
+    COALESCE(sejours.dms, 0) AS duree_moyenne_sejour,
+    COALESCE(revenus.chiffre_affaires, 0) AS ca_mensuel,
+    RANK() OVER (ORDER BY COALESCE(revenus.chiffre_affaires, 0) DESC) AS rang_ca
+FROM SERVICE sv
+LEFT JOIN (
+    SELECT c.id_service,
+           COUNT(l.id_lit) AS nb_lits,
+           SUM(CASE WHEN l.etat = 'Occupé' THEN 1 ELSE 0 END) AS lits_occupes,
+           ROUND(SUM(CASE WHEN l.etat = 'Occupé' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1) AS taux_occupation
+    FROM CHAMBRE c
+    JOIN LIT l ON c.id_chambre = l.id_chambre
+    GROUP BY c.id_service
+) AS stats ON sv.id_service = stats.id_service
+LEFT JOIN (
+    SELECT c.id_service,
+           COUNT(DISTINCT s.IEP) AS nb_sejours,
+           ROUND(AVG(DATEDIFF(COALESCE(s.date_sortie, NOW()), s.date_admission)), 1) AS dms
+    FROM SEJOUR s
+    JOIN OCCUPE o ON s.IEP = o.IEP_sejour
+    JOIN LIT l ON o.id_lit = l.id_lit
+    JOIN CHAMBRE c ON l.id_chambre = c.id_chambre
+    WHERE s.date_admission >= DATE_SUB(NOW(), INTERVAL 1 MONTH)
+    GROUP BY c.id_service
+) AS sejours ON sv.id_service = sejours.id_service
+LEFT JOIN (
+    SELECT c.id_service, SUM(f.montant_total) AS chiffre_affaires
+    FROM FACTURE f
+    JOIN SEJOUR s ON f.IEP_sejour = s.IEP
+    JOIN OCCUPE o ON s.IEP = o.IEP_sejour
+    JOIN LIT l ON o.id_lit = l.id_lit
+    JOIN CHAMBRE c ON l.id_chambre = c.id_chambre
+    WHERE f.date_realisation >= DATE_SUB(NOW(), INTERVAL 1 MONTH)
+    GROUP BY c.id_service
+) AS revenus ON sv.id_service = revenus.id_service
+ORDER BY rang_ca;
+```
+
