@@ -69,17 +69,16 @@ Ce projet académique couvre l'ensemble du cycle de modélisation des données p
 
 ```
 projet-hopitale-bdd/
-├── 📄 README.md                      # Ce fichier
-├── 📄 RAPPORT_TP_MCD_MERISE.md       # Rapport complet du TP
-├── 📄 hopital_db_merise.sql          # Code SQL optimisé (~350 lignes)
-├── 📄 hopital_db_complete.sql        # Code SQL complet (~1100 lignes)
-├── 📄 MERISE_ANALYSE.md              # Analyse détaillée Merise
-├── 📄 MCD_MERISE_DOCUMENTATION.md    # Documentation MCD
-├── 📄 COMPARAISON_OPTIMISATION.md    # Comparaison avant/après
-├── 📁 mocodo/                        # Code Mocodo pour visualisation
-│   ├── 📄 MCD_MOCODO.mcd             # Code Mocodo détaillé
-│   └── 📄 MCD_MOCODO_SIMPLE.mcd      # Code Mocodo simplifié
-└── 📄 projet_mcd-1.pdf               # Énoncé du TP
+├── README.md                         # Ce fichier
+├── RAPPORT_TP_MCD_MERISE.md          # Rapport du TP
+├── hopital_db_merise.sql             # Script SQL (~350 lignes)
+├── MCD_MERISE_DOCUMENTATION.md       # Documentation MCD
+├── MERISE_ANALYSE.md                 # Analyse Merise
+├── COMPARAISON_OPTIMISATION.md       # Notes d'optimisation
+├── mocodo/                           # Fichiers Mocodo
+│   ├── MCD_MOCODO.mcd
+│   └── MCD_MOCODO_SIMPLE.mcd
+└── projet_mcd-1.pdf                  # Énoncé du TP
 ```
 
 ---
