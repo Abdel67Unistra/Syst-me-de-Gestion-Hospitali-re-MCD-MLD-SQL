@@ -28,4 +28,4 @@ mysql -u root -p < hopital_db_merise.sql
 
 ## Auteur
 
-Cheriet Abdel - Université de Strasbourg - Décembre 2025
+Cheriet Abdelmalek - Université de Strasbourg - Décembre 2025

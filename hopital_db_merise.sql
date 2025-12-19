@@ -1,6 +1,6 @@
 -- ============================================================================
 -- Base de données hospitalière - TP Modélisation MERISE
--- Cheriet Abdel - M1 Statistique - Décembre 2025
+-- Cheriet Abdelmalek - M1 Statistique - Décembre 2025
 -- ============================================================================
 --
 -- Entités (13) : PATIENT, PERSONNEL, MEDECIN, INFIRMIER, SERVICE, CHAMBRE, 

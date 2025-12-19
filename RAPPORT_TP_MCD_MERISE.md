@@ -1,7 +1,7 @@
 # Rapport de Projet - Base de Données Hospitalière
 ## Modélisation MERISE : MCD, MLD et implémentation SQL
 
-**Réalisé par :** Cheriet Abdel  
+**Réalisé par :** Cheriet Abdelmalek  
 **Formation :** Master 1 Statistique - Université de Strasbourg  
 **Date de rendu :** 19 décembre 2025  
 **Matière :** Bases de Données
