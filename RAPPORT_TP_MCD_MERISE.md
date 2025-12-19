@@ -403,24 +403,45 @@ Pendant ce projet, j'ai eu quelques soucis :
 
 3. **Les cardinalités de l'héritage** : j'ai hésité entre plusieurs façons de représenter l'héritage. J'ai finalement choisi la méthode avec une FK UNIQUE dans les tables filles.
 
+4. **L'association réflexive** : modéliser la hiérarchie du personnel avec SUPERVISE m'a demandé de bien réfléchir aux cardinalités (0,1 côté supervisé, 0,N côté superviseur) et à la contrainte d'auto-référence.
+
 ---
 
 ## Conclusion
 
-Ce projet m'a permis de mettre en pratique la méthode MERISE de bout en bout. Le passage du MCD au SQL n'est pas toujours évident, surtout pour l'héritage et les associations avec attributs.
+Ce projet m'a permis de mettre en pratique la méthode MERISE de bout en bout. Le passage du MCD au SQL n'est pas toujours évident, surtout pour l'héritage, les associations avec attributs et les associations réflexives.
 
 Le modèle final comprend :
-- 13 tables (entités)
-- 4 tables d'association
-- 5 triggers pour les règles métier
-- 4 vues pour les requêtes courantes
+- **13 entités** (PATIENT, PERSONNEL, MEDECIN, INFIRMIER, SERVICE, CHAMBRE, LIT, SEJOUR, CONSULTATION, PRESCRIPTION, ACTE_MEDICAL, INTERVENTION, BLOC_OPERATOIRE)
+- **5 tables d'association** (OCCUPE, AFFECTE_A, FACTURE, COMPREND, SUPERVISE)
+- **1 association réflexive** (SUPERVISE pour la hiérarchie du personnel)
+- **2 héritages exclusifs** (PERSONNEL → MEDECIN/INFIRMIER)
+- **5 triggers** pour les règles métier
+- **4 vues** pour les requêtes courantes
+- **17 requêtes statistiques** (distributions, séries temporelles, indicateurs)
+- **14 requêtes avancées** (sous-requêtes, jointures multiples, fonctions de fenêtrage)
 
-Le code SQL fait environ 350 lignes, ce qui reste raisonnable pour un système de cette taille.
+Le code SQL fait environ 600 lignes, ce qui reste raisonnable pour un système de cette complexité.
+
+### Techniques SQL utilisées
+
+J'ai pu mettre en pratique différentes techniques :
+
+| Technique | Exemples |
+|-----------|----------|
+| Jointures multiples | Jusqu'à 7 tables jointes |
+| Sous-requêtes simples | Dans WHERE, HAVING, SELECT |
+| Sous-sous-requêtes | 3 niveaux d'imbrication |
+| Sous-requêtes corrélées | EXISTS, NOT EXISTS |
+| Fonctions d'agrégation | COUNT, SUM, AVG, MIN, MAX |
+| Fonctions de fenêtrage | RANK(), PERCENT_RANK(), AVG() OVER |
+| Moyenne mobile | ROWS BETWEEN ... PRECEDING |
+| Partitionnement | PARTITION BY |
 
 Si je devais améliorer le projet, j'ajouterais probablement :
 - Des procédures stockées pour les opérations complexes (admission, sortie)
 - Un système d'audit pour tracer les modifications
-- Plus de contraintes CHECK pour valider les données
+- Des index supplémentaires pour optimiser les performances
 
 ---
 
