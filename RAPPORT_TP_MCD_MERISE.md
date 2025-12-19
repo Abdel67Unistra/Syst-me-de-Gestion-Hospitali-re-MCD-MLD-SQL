@@ -1,16 +1,16 @@
-# Rapport de TP - Base de Données Hospitalière
+# Rapport de Projet - Base de Données Hospitalière
 ## Modélisation MERISE : MCD, MLD et implémentation SQL
 
 **Réalisé par :** Cheriet Abdel  
-**Formation :** Licence Informatique - Université de Strasbourg  
+**Formation :** Master 1 Statistique - Université de Strasbourg  
 **Date de rendu :** 19 décembre 2025  
-**Matière :** Bases de Données Relationnelles
+**Matière :** Bases de Données
 
 ---
 
 ## Introduction
 
-Dans le cadre de ce TP, j'ai dû concevoir une base de données pour gérer un hôpital. L'objectif était de partir d'un cahier des charges et d'arriver à une base fonctionnelle en passant par toutes les étapes de la méthode MERISE.
+Dans le cadre de ce projet, j'ai dû concevoir une base de données pour gérer un hôpital. L'objectif était de partir d'un cahier des charges et d'arriver à une base fonctionnelle en passant par toutes les étapes de la méthode MERISE.
 
 J'ai choisi de modéliser un système qui gère les patients, le personnel (médecins et infirmiers), les séjours hospitaliers, les consultations et la facturation des actes médicaux. C'est un cas assez complet qui m'a permis de travailler sur plusieurs concepts comme l'héritage et les associations multiples.
 
@@ -245,7 +245,7 @@ J'ai testé notamment :
 
 ## Difficultés rencontrées
 
-Pendant ce TP, j'ai eu quelques soucis :
+Pendant ce projet, j'ai eu quelques soucis :
 
 1. **La colonne calculée pour la facturation** : au départ j'avais mis une sous-requête dans le GENERATED ALWAYS AS, mais MySQL ne le permet pas. J'ai dû ajouter une colonne `montant_unitaire` qu'on remplit à l'insertion.
 
@@ -257,7 +257,7 @@ Pendant ce TP, j'ai eu quelques soucis :
 
 ## Conclusion
 
-Ce TP m'a permis de mettre en pratique la méthode MERISE de bout en bout. Le passage du MCD au SQL n'est pas toujours évident, surtout pour l'héritage et les associations avec attributs.
+Ce projet m'a permis de mettre en pratique la méthode MERISE de bout en bout. Le passage du MCD au SQL n'est pas toujours évident, surtout pour l'héritage et les associations avec attributs.
 
 Le modèle final comprend :
 - 13 tables (entités)

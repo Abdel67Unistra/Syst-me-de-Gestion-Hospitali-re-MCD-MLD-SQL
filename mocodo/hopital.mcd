@@ -1,0 +1,50 @@
+PATIENT: IPP, nom, prenom, date_naissance, sexe, num_secu, telephone, adresse, antecedents
+S'OCCUPE DE, 0N PATIENT, 11 SEJOUR
+SEJOUR: IEP, date_admission, date_sortie, motif, mode_entree, mode_sortie, diagnostic
+:
+FACTURE, 0N SEJOUR, 0N ACTE_MEDICAL: quantite, date_realisation, statut_facturation
+
+EST POUR, 0N PATIENT, 11 CONSULTATION
+CONSULTATION: id_consultation, date_heure, motif, diagnostic, compte_rendu, statut
+CONSULTE, 0N MEDECIN, 11 CONSULTATION
+:
+ACTE_MEDICAL: code_CCAM, libelle, tarif, categorie, duree_moyenne
+
+:
+CONCERNE, 0N SEJOUR, 11 PRESCRIPTION
+PRESCRIPTION: id_prescription, date_prescription, medicament, posologie, voie, statut, date_debut, date_fin
+PRESCRIT, 0N MEDECIN, 11 PRESCRIPTION
+COMPREND, 0N INTERVENTION, 0N ACTE_MEDICAL: ordre, duree_estimee
+
+:
+LIEE A, 0N SEJOUR, 11 INTERVENTION
+INTERVENTION: id_intervention, date_intervention, heure_debut, heure_fin, type, compte_rendu, statut
+OPERE, 0N MEDECIN, 11 INTERVENTION
+:
+
+:
+DANS, 0N BLOC_OPERATOIRE, 11 INTERVENTION
+BLOC_OPERATOIRE: id_bloc, nom_bloc, batiment, etage, equipements, statut
+:
+MEDECIN: RPPS, specialite, est_chef
+EST UN, 11 MEDECIN, 10 PERSONNEL
+
+OCCUPE, 0N SEJOUR, 0N LIT: date_debut, date_fin, motif_changement
+LIT: id_lit, numero_lit, etat, type_lit, equipements
+POSSEDE, 1N CHAMBRE, 11 LIT
+CHAMBRE: id_chambre, numero_chambre, capacite, type_chambre
+:
+
+:
+CONTIENT, 1N SERVICE, 11 CHAMBRE
+SERVICE: id_service, nom_service, batiment, etage, specialite, telephone_service
+TRAVAILLE DANS, 01 MEDECIN, 0N SERVICE
+PERSONNEL: id_personnel, nom, prenom, date_naissance, date_embauche, telephone, type_contrat, actif
+:
+
+:
+AFFECTE A, 0N INFIRMIER, 0N SERVICE: date_debut, date_fin, taux_activite
+INFIRMIER: id_infirmier, grade, diplome
+EST UN BIS, 11 INFIRMIER, 10 PERSONNEL
+:
+:
