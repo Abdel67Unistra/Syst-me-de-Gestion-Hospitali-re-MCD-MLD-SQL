@@ -375,5 +375,60 @@ INSERT INTO FACTURE (IEP_sejour, code_CCAM, quantite, date_realisation, montant_
 ('PAT001-20251219-0001', 'CONS001', 1, '2025-12-15 11:00:00', 25.00),
 ('PAT001-20251219-0001', 'IMG001', 1, '2025-12-15 15:30:00', 20.00);
 
+-- ============================================================================
+-- REQUÊTES SQL AVEC JOINTURES (5 requêtes demandées dans l'énoncé)
+-- ============================================================================
+
+-- 1. Lits disponibles actuellement en cardiologie
+SELECT l.id_lit, l.numero_lit, l.type_lit, c.numero_chambre, s.nom_service
+FROM LIT l
+JOIN CHAMBRE c ON l.id_chambre = c.id_chambre
+JOIN SERVICE s ON c.id_service = s.id_service
+WHERE l.etat = 'Disponible' AND s.nom_service = 'Cardiologie';
+
+-- 2. Médecin ayant réalisé le plus de consultations (avec RPPS et nom)
+SELECT m.RPPS, p.nom, p.prenom, m.specialite, COUNT(c.id_consultation) AS nb_consultations
+FROM MEDECIN m
+JOIN PERSONNEL p ON m.id_personnel = p.id_personnel
+LEFT JOIN CONSULTATION c ON m.RPPS = c.RPPS_medecin
+GROUP BY m.RPPS, p.nom, p.prenom, m.specialite
+ORDER BY nb_consultations DESC
+LIMIT 1;
+
+-- 3. Tous les séjours (IEP) d'un patient donné (IPP = 'PAT001')
+SELECT s.IEP, s.date_admission, s.date_sortie, s.motif_admission, s.diagnostic_principal,
+       sv.nom_service, c.numero_chambre, l.numero_lit
+FROM SEJOUR s
+LEFT JOIN OCCUPE o ON s.IEP = o.IEP_sejour
+LEFT JOIN LIT l ON o.id_lit = l.id_lit
+LEFT JOIN CHAMBRE c ON l.id_chambre = c.id_chambre
+LEFT JOIN SERVICE sv ON c.id_service = sv.id_service
+WHERE s.IPP = 'PAT001'
+ORDER BY s.date_admission DESC;
+
+-- 4. Durée moyenne de séjour par service (en jours)
+SELECT sv.nom_service, 
+       COUNT(DISTINCT s.IEP) AS nb_sejours,
+       ROUND(AVG(DATEDIFF(COALESCE(s.date_sortie, NOW()), s.date_admission)), 1) AS duree_moyenne_jours
+FROM SEJOUR s
+JOIN OCCUPE o ON s.IEP = o.IEP_sejour
+JOIN LIT l ON o.id_lit = l.id_lit
+JOIN CHAMBRE c ON l.id_chambre = c.id_chambre
+JOIN SERVICE sv ON c.id_service = sv.id_service
+GROUP BY sv.id_service, sv.nom_service
+ORDER BY duree_moyenne_jours DESC;
+
+-- 5. Prescriptions actives avec informations patient et médecin prescripteur
+SELECT pr.id_prescription, pr.medicament, pr.posologie, pr.voie_administration, pr.date_debut,
+       CONCAT(pa.nom, ' ', pa.prenom) AS patient, s.IEP,
+       CONCAT(pe.nom, ' ', pe.prenom) AS medecin, m.RPPS, m.specialite
+FROM PRESCRIPTION pr
+JOIN SEJOUR s ON pr.IEP_sejour = s.IEP
+JOIN PATIENT pa ON s.IPP = pa.IPP
+JOIN MEDECIN m ON pr.RPPS_medecin = m.RPPS
+JOIN PERSONNEL pe ON m.id_personnel = pe.id_personnel
+WHERE pr.statut = 'Active'
+ORDER BY pr.date_debut DESC;
+
 -- Fin du script
 

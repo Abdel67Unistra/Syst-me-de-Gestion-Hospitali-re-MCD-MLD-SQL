@@ -402,13 +402,47 @@ Si je devais améliorer le projet, j'ajouterais probablement :
 
 ### Requêtes de test
 
+Voici les 5 requêtes avec jointures demandées dans l'énoncé :
+
 ```sql
--- Voir les séjours en cours
-SELECT * FROM v_sejours_en_cours;
+-- 1. Lits disponibles en cardiologie
+SELECT l.id_lit, l.numero_lit, c.numero_chambre, s.nom_service
+FROM LIT l
+JOIN CHAMBRE c ON l.id_chambre = c.id_chambre
+JOIN SERVICE s ON c.id_service = s.id_service
+WHERE l.etat = 'Disponible' AND s.nom_service = 'Cardiologie';
 
--- Voir les lits disponibles
-SELECT * FROM v_lits_disponibles;
+-- 2. Médecin avec le plus de consultations
+SELECT m.RPPS, p.nom, p.prenom, COUNT(c.id_consultation) AS nb_consultations
+FROM MEDECIN m
+JOIN PERSONNEL p ON m.id_personnel = p.id_personnel
+LEFT JOIN CONSULTATION c ON m.RPPS = c.RPPS_medecin
+GROUP BY m.RPPS, p.nom, p.prenom
+ORDER BY nb_consultations DESC LIMIT 1;
 
--- Voir le taux d'occupation
-SELECT * FROM v_taux_occupation_service;
+-- 3. Tous les séjours d'un patient (IPP = 'PAT001')
+SELECT s.IEP, s.date_admission, s.date_sortie, s.motif_admission
+FROM SEJOUR s
+WHERE s.IPP = 'PAT001'
+ORDER BY s.date_admission DESC;
+
+-- 4. Durée moyenne de séjour par service
+SELECT sv.nom_service, 
+       ROUND(AVG(DATEDIFF(COALESCE(s.date_sortie, NOW()), s.date_admission)), 1) AS duree_jours
+FROM SEJOUR s
+JOIN OCCUPE o ON s.IEP = o.IEP_sejour
+JOIN LIT l ON o.id_lit = l.id_lit
+JOIN CHAMBRE c ON l.id_chambre = c.id_chambre
+JOIN SERVICE sv ON c.id_service = sv.id_service
+GROUP BY sv.id_service, sv.nom_service;
+
+-- 5. Prescriptions actives avec médecin et patient
+SELECT pr.medicament, pr.posologie, CONCAT(pa.nom, ' ', pa.prenom) AS patient,
+       CONCAT(pe.nom, ' ', pe.prenom) AS medecin
+FROM PRESCRIPTION pr
+JOIN SEJOUR s ON pr.IEP_sejour = s.IEP
+JOIN PATIENT pa ON s.IPP = pa.IPP
+JOIN MEDECIN m ON pr.RPPS_medecin = m.RPPS
+JOIN PERSONNEL pe ON m.id_personnel = pe.id_personnel
+WHERE pr.statut = 'Active';
 ```
