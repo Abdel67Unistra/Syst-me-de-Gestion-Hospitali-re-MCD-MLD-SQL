@@ -20,8 +20,6 @@ J'ai choisi de modéliser un système qui gère les patients, le personnel (méd
 
 ### Ce qu'il fallait gérer
 
-Après lecture de l'énoncé, j'ai identifié les principales fonctionnalités à implémenter :
-
 - La gestion des patients avec leurs informations personnelles et médicales
 - Le personnel de l'hôpital, sachant qu'un employé peut être médecin ou infirmier mais pas les deux
 - Les services hospitaliers avec leurs chambres et leurs lits
@@ -449,20 +447,24 @@ Si je devais améliorer le projet, j'ajouterais probablement :
 
 ### Liste des fichiers du projet
 
-- `hopital_db_merise.sql` : le script SQL principal
+- `hopital_db_merise.sql` : le script SQL principal (~600 lignes)
 - `RAPPORT_TP_MCD_MERISE.md` : ce rapport
 - `mocodo/hopital.mcd` : fichier pour visualiser le MCD avec l'outil Mocodo
 - `mcd_diagram.png` : capture d'écran du diagramme MCD
 
-### Requêtes de test
+### Requêtes de test avec questions et réponses
 
-Voici des requêtes avancées utilisant différentes techniques SQL : jointures multiples, sous-requêtes, sous-sous-requêtes, agrégations et fonctions de fenêtrage.
+Voici des requêtes avancées organisées par question métier. Chaque requête utilise différentes techniques SQL.
 
-#### Requêtes avec jointures multiples
+---
+
+#### 🔹 QUESTIONS AVEC JOINTURES MULTIPLES
+
+**Question 1 : Quel est le parcours complet d'un patient donné (séjours, localisation, médecins) ?**
+
+*Contexte :* Le service administratif veut reconstituer tout l'historique d'un patient.
 
 ```sql
--- 1. Parcours complet d'un patient : séjours, lits, services, médecins
--- Utilise 7 jointures pour reconstituer tout le parcours
 SELECT 
     p.IPP, CONCAT(p.nom, ' ', p.prenom) AS patient,
     s.IEP, s.date_admission, s.date_sortie,
@@ -479,8 +481,19 @@ LEFT JOIN CONSULTATION cs ON p.IPP = cs.IPP_patient
 LEFT JOIN MEDECIN m ON cs.RPPS_medecin = m.RPPS
 LEFT JOIN PERSONNEL pe ON m.id_personnel = pe.id_personnel
 WHERE p.IPP = 'PAT001';
+```
 
--- 2. Activité complète d'un médecin avec hiérarchie (association réflexive)
+*Réponse attendue :* Retourne toutes les informations du patient PAT001 : ses séjours avec dates, le service où il est/était, la chambre et le lit, ainsi que le médecin qui l'a consulté.
+
+*Technique :* 7 jointures (JOIN et LEFT JOIN) pour traverser les tables PATIENT → SEJOUR → OCCUPE → LIT → CHAMBRE → SERVICE et CONSULTATION → MEDECIN → PERSONNEL.
+
+---
+
+**Question 2 : Quelle est l'activité complète d'un médecin et qui est son superviseur ?**
+
+*Contexte :* La direction veut évaluer la charge de travail des médecins et vérifier la hiérarchie.
+
+```sql
 SELECT 
     CONCAT(p.nom, ' ', p.prenom) AS medecin,
     m.RPPS, m.specialite,
@@ -500,10 +513,19 @@ LEFT JOIN INTERVENTION i ON m.RPPS = i.RPPS_chirurgien
 GROUP BY m.RPPS, p.nom, p.prenom, m.specialite, sv.nom_service, sup.nom, sup.prenom;
 ```
 
-#### Requêtes avec sous-requêtes simples
+*Réponse attendue :* Pour chaque médecin : son nom, RPPS, spécialité, service principal, le nom de son superviseur (via l'association réflexive SUPERVISE), et le nombre de consultations/prescriptions/interventions réalisées.
+
+*Technique :* Utilisation de l'association réflexive (auto-jointure sur PERSONNEL via SUPERVISE) + agrégations COUNT DISTINCT.
+
+---
+
+#### 🔹 QUESTIONS AVEC SOUS-REQUÊTES
+
+**Question 3 : Quels patients ont séjourné plus longtemps que la moyenne ?**
+
+*Contexte :* Identifier les hospitalisations longues pour analyse des cas complexes.
 
 ```sql
--- 3. Patients ayant séjourné plus longtemps que la moyenne
 SELECT 
     p.IPP, CONCAT(p.nom, ' ', p.prenom) AS patient,
     s.IEP, 
@@ -516,8 +538,19 @@ WHERE DATEDIFF(COALESCE(s.date_sortie, NOW()), s.date_admission) > (
     SELECT AVG(DATEDIFF(COALESCE(date_sortie, NOW()), date_admission)) 
     FROM SEJOUR
 );
+```
 
--- 4. Services dont le taux d'occupation dépasse la moyenne hospitalière
+*Réponse attendue :* Liste des patients dont la durée de séjour dépasse la moyenne hospitalière, avec leur durée et la moyenne pour comparaison.
+
+*Technique :* Sous-requête dans WHERE pour filtrer + sous-requête dans SELECT pour afficher la moyenne de référence.
+
+---
+
+**Question 4 : Quels services ont un taux d'occupation supérieur à la moyenne de l'hôpital ?**
+
+*Contexte :* Identifier les services surchargés pour réaffecter les ressources.
+
+```sql
 SELECT 
     sv.nom_service,
     COUNT(CASE WHEN l.etat = 'Occupé' THEN 1 END) AS lits_occupes,
@@ -531,8 +564,19 @@ HAVING taux_occupation > (
     SELECT ROUND(SUM(CASE WHEN etat = 'Occupé' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1)
     FROM LIT
 );
+```
 
--- 5. Médecins n'ayant pas fait de consultation ce mois-ci (NOT IN)
+*Réponse attendue :* Services dont le taux d'occupation dépasse la moyenne globale de l'hôpital.
+
+*Technique :* Sous-requête dans HAVING pour comparer après agrégation.
+
+---
+
+**Question 5 : Quels médecins n'ont fait aucune consultation ce mois-ci ?**
+
+*Contexte :* Vérifier si des médecins sont en congé ou sous-utilisés.
+
+```sql
 SELECT m.RPPS, CONCAT(p.nom, ' ', p.prenom) AS medecin, m.specialite
 FROM MEDECIN m
 JOIN PERSONNEL p ON m.id_personnel = p.id_personnel
@@ -543,10 +587,19 @@ WHERE m.RPPS NOT IN (
 );
 ```
 
-#### Requêtes avec sous-sous-requêtes (imbriquées)
+*Réponse attendue :* Liste des médecins sans aucune consultation enregistrée pour le mois en cours.
+
+*Technique :* NOT IN avec sous-requête corrélée sur la date.
+
+---
+
+#### 🔹 QUESTIONS AVEC SOUS-SOUS-REQUÊTES (IMBRIQUÉES)
+
+**Question 6 : Quels patients ont un coût total supérieur à la moyenne des "gros consommateurs" (>2 actes) ?**
+
+*Contexte :* Identifier les cas très coûteux pour l'analyse financière.
 
 ```sql
--- 6. Patients dont le coût total dépasse la moyenne des patients ayant plus de 2 actes
 SELECT 
     p.IPP, CONCAT(p.nom, ' ', p.prenom) AS patient,
     total_patient.cout_total
@@ -567,33 +620,19 @@ WHERE total_patient.cout_total > (
         HAVING COUNT(f.id_facturation) > 2
     ) AS sous_requete
 );
+```
 
--- 7. Services ayant un taux d'occupation supérieur à celui du service le plus chargé en urgences
-SELECT sv.nom_service, taux.taux_occupation
-FROM SERVICE sv
-JOIN (
-    SELECT c.id_service,
-           ROUND(SUM(CASE WHEN l.etat = 'Occupé' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1) AS taux_occupation
-    FROM CHAMBRE c
-    JOIN LIT l ON c.id_chambre = l.id_chambre
-    GROUP BY c.id_service
-) AS taux ON sv.id_service = taux.id_service
-WHERE taux.taux_occupation >= (
-    SELECT MAX(taux_occ)
-    FROM (
-        SELECT c.id_service,
-               ROUND(SUM(CASE WHEN l.etat = 'Occupé' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1) AS taux_occ
-        FROM CHAMBRE c
-        JOIN LIT l ON c.id_chambre = l.id_chambre
-        JOIN SEJOUR s ON EXISTS (
-            SELECT 1 FROM OCCUPE o WHERE o.id_lit = l.id_lit AND o.IEP_sejour = s.IEP
-        )
-        WHERE s.mode_entree = 'Urgence'
-        GROUP BY c.id_service
-    ) AS services_urgence
-);
+*Réponse attendue :* Patients dont le coût total dépasse la moyenne des patients ayant eu plus de 2 actes facturés.
 
--- 8. Hiérarchie complète : qui supervise qui avec niveau de profondeur
+*Technique :* 3 niveaux d'imbrication - sous-requête dans FROM (total par patient), sous-sous-requête pour calculer la moyenne de référence.
+
+---
+
+**Question 7 : Quelle est la hiérarchie complète du personnel sur 2 niveaux ?**
+
+*Contexte :* Visualiser l'organigramme : qui supervise qui, et qui supervise les superviseurs.
+
+```sql
 SELECT 
     niveau1.superviseur AS chef,
     niveau1.supervise AS subordonné_direct,
@@ -618,10 +657,19 @@ LEFT JOIN (
 ) AS niveau2 ON niveau1.id_supervise = niveau2.id_superviseur;
 ```
 
-#### Requêtes avec EXISTS et corrélation
+*Réponse attendue :* Arbre hiérarchique montrant le chef, ses subordonnés directs, et les subordonnés de ceux-ci.
+
+*Technique :* Double utilisation de l'association réflexive avec auto-jointure imbriquée.
+
+---
+
+#### 🔹 QUESTIONS AVEC EXISTS
+
+**Question 8 : Quels patients ont eu à la fois une intervention chirurgicale ET des prescriptions ?**
+
+*Contexte :* Identifier les patients avec parcours de soins complexe.
 
 ```sql
--- 9. Patients ayant eu au moins une intervention ET une prescription (EXISTS corrélé)
 SELECT DISTINCT p.IPP, CONCAT(p.nom, ' ', p.prenom) AS patient
 FROM PATIENT p
 WHERE EXISTS (
@@ -634,8 +682,19 @@ AND EXISTS (
     JOIN PRESCRIPTION pr ON s.IEP = pr.IEP_sejour
     WHERE s.IPP = p.IPP
 );
+```
 
--- 10. Lits jamais occupés depuis leur création (NOT EXISTS)
+*Réponse attendue :* Patients ayant eu au moins une intervention ET au moins une prescription.
+
+*Technique :* Double EXISTS corrélé pour vérifier deux conditions indépendantes.
+
+---
+
+**Question 9 : Quels lits n'ont jamais été utilisés ?**
+
+*Contexte :* Identifier les ressources sous-exploitées pour optimiser la capacité.
+
+```sql
 SELECT l.id_lit, l.numero_lit, c.numero_chambre, sv.nom_service
 FROM LIT l
 JOIN CHAMBRE c ON l.id_chambre = c.id_chambre
@@ -645,22 +704,42 @@ WHERE NOT EXISTS (
 );
 ```
 
-#### Requêtes avec fonctions de fenêtrage (analytiques)
+*Réponse attendue :* Liste des lits sans aucune occupation historique.
+
+*Technique :* NOT EXISTS pour trouver les enregistrements sans correspondance.
+
+---
+
+#### 🔹 QUESTIONS AVEC FONCTIONS DE FENÊTRAGE
+
+**Question 10 : Quel est le classement des médecins par nombre de consultations ?**
+
+*Contexte :* Établir un palmarès pour évaluer l'activité médicale.
 
 ```sql
--- 11. Classement des médecins par nombre d'actes avec rang et percentile
 SELECT 
     CONCAT(p.nom, ' ', p.prenom) AS medecin,
     m.specialite,
     COUNT(c.id_consultation) AS nb_consultations,
     RANK() OVER (ORDER BY COUNT(c.id_consultation) DESC) AS rang,
-    PERCENT_RANK() OVER (ORDER BY COUNT(c.id_consultation)) AS percentile
+    ROUND(PERCENT_RANK() OVER (ORDER BY COUNT(c.id_consultation)) * 100, 1) AS percentile
 FROM MEDECIN m
 JOIN PERSONNEL p ON m.id_personnel = p.id_personnel
 LEFT JOIN CONSULTATION c ON m.RPPS = c.RPPS_medecin
 GROUP BY m.RPPS, p.nom, p.prenom, m.specialite;
+```
 
--- 12. Évolution du nombre d'admissions avec moyenne mobile sur 7 jours
+*Réponse attendue :* Chaque médecin avec son nombre de consultations, son rang et son percentile.
+
+*Technique :* RANK() pour le classement, PERCENT_RANK() pour la position relative.
+
+---
+
+**Question 11 : Quelle est l'évolution des admissions avec moyenne mobile sur 7 jours ?**
+
+*Contexte :* Détecter les tendances d'affluence pour planifier les ressources.
+
+```sql
 SELECT 
     DATE(date_admission) AS jour,
     COUNT(*) AS admissions_jour,
@@ -671,8 +750,19 @@ SELECT
 FROM SEJOUR
 GROUP BY DATE(date_admission)
 ORDER BY jour;
+```
 
--- 13. Comparaison de chaque séjour avec la moyenne de son service
+*Réponse attendue :* Pour chaque jour : nombre d'admissions et moyenne glissante des 7 derniers jours.
+
+*Technique :* Fonction de fenêtrage AVG() OVER avec ROWS BETWEEN pour la moyenne mobile.
+
+---
+
+**Question 12 : Comment chaque séjour se compare-t-il à la moyenne de son service ?**
+
+*Contexte :* Identifier les séjours anormalement longs par rapport au service.
+
+```sql
 SELECT 
     s.IEP,
     CONCAT(p.nom, ' ', p.prenom) AS patient,
@@ -691,10 +781,19 @@ JOIN CHAMBRE c ON l.id_chambre = c.id_chambre
 JOIN SERVICE sv ON c.id_service = sv.id_service;
 ```
 
-#### Requête combinant toutes les techniques
+*Réponse attendue :* Pour chaque séjour : la durée, la moyenne du service, et l'écart (positif = plus long que la moyenne).
+
+*Technique :* PARTITION BY pour calculer la moyenne par groupe (service) sans perdre le détail des lignes.
+
+---
+
+#### 🔹 QUESTION FINALE : TABLEAU DE BORD COMPLET
+
+**Question 13 : Quel est le tableau de bord mensuel complet par service ?**
+
+*Contexte :* Dashboard pour la direction avec tous les indicateurs clés.
 
 ```sql
--- 14. Tableau de bord complet par service (jointures + sous-requêtes + agrégations + fenêtrage)
 SELECT 
     sv.nom_service,
     stats.nb_lits,
@@ -737,4 +836,8 @@ LEFT JOIN (
 ) AS revenus ON sv.id_service = revenus.id_service
 ORDER BY rang_ca;
 ```
+
+*Réponse attendue :* Pour chaque service : capacité, occupation, nombre de séjours du mois, durée moyenne de séjour (DMS), chiffre d'affaires mensuel, et classement par CA.
+
+*Technique :* Combinaison de toutes les techniques - 3 sous-requêtes dans FROM, jointures multiples, agrégations, et fonction de fenêtrage RANK().
 
