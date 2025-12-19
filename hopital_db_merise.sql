@@ -1,28 +1,22 @@
 -- ============================================================================
--- MODÈLE CONCEPTUEL DE DONNÉES MERISE - SYSTÈME HOSPITALIER
--- Version Optimisée : Exhaustive Minimale (~400 lignes)
+-- Base de données hospitalière - TP Modélisation MERISE
+-- Cheriet Abdel - M1 Statistique - Décembre 2025
 -- ============================================================================
--- Langage : SQL MySQL 8.0+ | Français | Conforme Merise
--- 
--- 📊 ENTITÉS (13) : PATIENT, PERSONNEL, MEDECIN, INFIRMIER, SERVICE, CHAMBRE, 
---                  LIT, SEJOUR, CONSULTATION, PRESCRIPTION, ACTE_MEDICAL, 
---                  INTERVENTION, BLOC_OPERATOIRE
 --
--- 🔗 ASSOCIATIONS (4) : OCCUPE (SEJOUR↔LIT), AFFECTE_A (INFIRMIER↔SERVICE),
---                       FACTURE (SEJOUR↔ACTE_MEDICAL), COMPREND (INTERVENTION↔ACTE_MEDICAL)
+-- Entités (13) : PATIENT, PERSONNEL, MEDECIN, INFIRMIER, SERVICE, CHAMBRE, 
+--                LIT, SEJOUR, CONSULTATION, PRESCRIPTION, ACTE_MEDICAL, 
+--                INTERVENTION, BLOC_OPERATOIRE
 --
--- ✓ Héritage : PERSONNEL → MEDECIN XOR INFIRMIER
--- ✓ Cardinalités Merise : (0,1) / (1,1) / (0,N) / (1,N)
--- ✓ Constraints : Triggers métier, FK en cascade, vérifications
+-- Associations N-N (4) : OCCUPE, AFFECTE_A, FACTURE, COMPREND
+--
+-- Héritage exclusif : PERSONNEL -> MEDECIN ou INFIRMIER
 -- ============================================================================
 
 DROP DATABASE IF EXISTS hopital_db;
 CREATE DATABASE hopital_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE hopital_db;
 
--- ============================================================================
--- SECTION 1 : ENTITÉS SIMPLES
--- ============================================================================
+-- Tables principales (entités)
 
 CREATE TABLE PATIENT (
     IPP VARCHAR(20) PRIMARY KEY COMMENT 'Identifiant Permanent Patient',
@@ -176,9 +170,7 @@ CREATE TABLE INTERVENTION (
     CHECK (heure_fin IS NULL OR heure_fin > heure_debut)
 ) ENGINE=InnoDB COMMENT='Interventions chirurgicales';
 
--- ============================================================================
--- SECTION 2 : ASSOCIATIONS N-N
--- ============================================================================
+-- Tables d'association (N-N)
 
 CREATE TABLE OCCUPE (
     id_occupation INT AUTO_INCREMENT PRIMARY KEY,
@@ -237,9 +229,7 @@ CREATE TABLE COMPREND (
     CHECK (duree_estimee IS NULL OR duree_estimee > 0)
 ) ENGINE=InnoDB COMMENT='Association INTERVENTION-ACTE_MEDICAL (composition)';
 
--- ============================================================================
--- SECTION 3 : TRIGGERS MÉTIER (Contraintes d'intégrité)
--- ============================================================================
+-- Triggers pour les contraintes métier
 
 -- Héritage exclusif PERSONNEL
 DELIMITER //
@@ -282,9 +272,7 @@ BEGIN
 END//
 DELIMITER ;
 
--- ============================================================================
--- SECTION 4 : VUES MÉTIER ESSENTIELLES
--- ============================================================================
+-- Vues
 
 CREATE VIEW v_sejours_en_cours AS
 SELECT s.IEP, p.IPP, CONCAT(p.nom, ' ', p.prenom) AS patient, 
@@ -325,9 +313,7 @@ JOIN PATIENT p ON s.IPP = p.IPP
 LEFT JOIN FACTURE f ON s.IEP = f.IEP_sejour
 GROUP BY s.IEP, p.IPP, p.nom, p.prenom, s.date_admission, s.date_sortie;
 
--- ============================================================================
--- SECTION 5 : DONNÉES DE TEST MINIMALES
--- ============================================================================
+-- Données de test
 
 INSERT INTO PATIENT VALUES
 ('PAT001', 'Dupont', 'Jean', '1975-03-15', 'M', '1750315123456', '0612345678', '123 Rue de Paris', 'Hypertension'),
@@ -389,7 +375,5 @@ INSERT INTO FACTURE (IEP_sejour, code_CCAM, quantite, date_realisation, montant_
 ('PAT001-20251219-0001', 'CONS001', 1, '2025-12-15 11:00:00', 25.00),
 ('PAT001-20251219-0001', 'IMG001', 1, '2025-12-15 15:30:00', 20.00);
 
--- ============================================================================
--- FIN DU SCRIPT - MCD MERISE COMPLET
--- ============================================================================
+-- Fin du script
 
