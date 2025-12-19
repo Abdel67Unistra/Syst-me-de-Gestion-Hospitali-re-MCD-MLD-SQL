@@ -2,7 +2,6 @@
 
 [![MySQL](https://img.shields.io/badge/MySQL-8.0+-blue.svg)](https://www.mysql.com/)
 [![MERISE](https://img.shields.io/badge/Méthode-MERISE-green.svg)](https://fr.wikipedia.org/wiki/Merise_(informatique))
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ## 📋 Description
 
@@ -165,20 +164,6 @@ mysql -u root -p < hopital_db_complete.sql
 **Abdel67Unistra**
 
 - GitHub: [@Abdel67Unistra](https://github.com/Abdel67Unistra)
-
----
-
-## 📝 Licence
-
-Ce projet est sous licence MIT - voir le fichier [LICENSE](LICENSE) pour plus de détails.
-
----
-
-## 🙏 Remerciements
-
-- Université de Strasbourg
-- Méthode MERISE
-- Communauté MySQL
 
 ---
 
