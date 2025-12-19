@@ -123,6 +123,119 @@ J'ai 4 associations qui nécessitent des tables intermédiaires :
 - Une intervention peut comprendre plusieurs actes
 - Attribut : ordre (pour la séquence des actes)
 
+### Contraintes du MCD
+
+Voici toutes les contraintes que j'ai identifiées et que le modèle doit respecter :
+
+#### Contraintes d'intégrité d'entité (clés primaires)
+
+| Entité | Identifiant | Type |
+|--------|-------------|------|
+| PATIENT | IPP | Naturel (Identifiant Permanent Patient) |
+| PERSONNEL | id_personnel | Artificiel (auto-incrémenté) |
+| MEDECIN | RPPS | Naturel (11 chiffres, registre national) |
+| INFIRMIER | id_infirmier | Artificiel |
+| SERVICE | id_service | Artificiel |
+| CHAMBRE | id_chambre | Artificiel |
+| LIT | id_lit | Artificiel |
+| SEJOUR | IEP | Naturel (Identifiant Épisode Patient) |
+| CONSULTATION | id_consultation | Artificiel |
+| PRESCRIPTION | id_prescription | Artificiel |
+| ACTE_MEDICAL | code_CCAM | Naturel (nomenclature officielle) |
+| INTERVENTION | id_intervention | Artificiel |
+| BLOC_OPERATOIRE | id_bloc | Artificiel |
+
+#### Contraintes d'intégrité référentielle (cardinalités)
+
+Conformément aux règles MERISE du cours, voici comment j'ai transformé les cardinalités :
+
+**Règle 1 - Associations 1:N** : la clé de l'entité côté "1" migre comme clé étrangère vers l'entité côté "N"
+
+| Association | Cardinalités | Transformation |
+|-------------|--------------|----------------|
+| S'OCCUPE DE | 0,N PATIENT → 1,1 SEJOUR | SEJOUR.IPP référence PATIENT |
+| EST POUR | 0,N PATIENT → 1,1 CONSULTATION | CONSULTATION.IPP référence PATIENT |
+| CONSULTE | 0,N MEDECIN → 1,1 CONSULTATION | CONSULTATION.RPPS référence MEDECIN |
+| CONCERNE | 0,N SEJOUR → 1,1 PRESCRIPTION | PRESCRIPTION.IEP référence SEJOUR |
+| PRESCRIT | 0,N MEDECIN → 1,1 PRESCRIPTION | PRESCRIPTION.RPPS référence MEDECIN |
+| LIEE A | 0,N SEJOUR → 1,1 INTERVENTION | INTERVENTION.IEP référence SEJOUR |
+| OPERE | 0,N MEDECIN → 1,1 INTERVENTION | INTERVENTION.RPPS référence MEDECIN |
+| DANS | 0,N BLOC → 1,1 INTERVENTION | INTERVENTION.id_bloc référence BLOC |
+| POSSEDE | 1,N CHAMBRE → 1,1 LIT | LIT.id_chambre référence CHAMBRE |
+| CONTIENT | 1,N SERVICE → 1,1 CHAMBRE | CHAMBRE.id_service référence SERVICE |
+| TRAVAILLE DANS | 0,1 MEDECIN → 0,N SERVICE | MEDECIN.id_service référence SERVICE (optionnel) |
+
+**Règle 2 - Associations N:N** : création d'une table d'association avec les deux clés étrangères
+
+| Association | Table créée | Attributs portés |
+|-------------|-------------|------------------|
+| OCCUPE (SEJOUR-LIT) | OCCUPE | date_debut, date_fin, motif_changement |
+| AFFECTE A (INFIRMIER-SERVICE) | AFFECTE_A | date_debut, date_fin, taux_activite |
+| FACTURE (SEJOUR-ACTE) | FACTURE | quantite, date_realisation, statut |
+| COMPREND (INTERVENTION-ACTE) | COMPREND | ordre, duree_estimee |
+
+**Règle 3 - Héritage** : l'identifiant de l'entité fille référence l'entité mère
+
+| Héritage | Cardinalités | Transformation |
+|----------|--------------|----------------|
+| EST UN | 1,1 MEDECIN → 1,0 PERSONNEL | MEDECIN.id_personnel référence PERSONNEL (UNIQUE) |
+| EST UN BIS | 1,1 INFIRMIER → 1,0 PERSONNEL | INFIRMIER.id_personnel référence PERSONNEL (UNIQUE) |
+
+#### Contraintes de domaine (valeurs autorisées)
+
+| Entité | Attribut | Domaine |
+|--------|----------|---------|
+| PATIENT | sexe | {'M', 'F'} |
+| PERSONNEL | type_contrat | {'CDI', 'CDD', 'Interim'} |
+| INFIRMIER | grade | {'IDE', 'IBODE', 'IADE'} |
+| CHAMBRE | type_chambre | {'Individuelle', 'Double', 'Isolement', 'Réanimation'} |
+| LIT | etat | {'Disponible', 'Occupé', 'Maintenance', 'Réservé'} |
+| LIT | type_lit | {'Standard', 'Médicalisé', 'Bariatrique'} |
+| SEJOUR | mode_entree | {'Urgence', 'Programmé', 'Mutation'} |
+| SEJOUR | mode_sortie | {'Domicile', 'Transfert', 'Décès'} |
+| CONSULTATION | statut | {'Programmée', 'Réalisée', 'Annulée'} |
+| PRESCRIPTION | voie | {'Orale', 'Injectable', 'Inhalation'} |
+| INTERVENTION | statut | {'Programmée', 'En cours', 'Terminée', 'Annulée'} |
+| BLOC_OPERATOIRE | statut | {'Disponible', 'Occupé', 'Maintenance'} |
+| ACTE_MEDICAL | categorie | {'Consultation', 'Imagerie', 'Biologie', 'Chirurgie', 'Anesthésie'} |
+
+#### Contraintes d'unicité
+
+| Entité | Attribut | Justification |
+|--------|----------|---------------|
+| PATIENT | num_secu | Un numéro de sécu = un seul patient |
+| SERVICE | nom_service | Pas deux services avec le même nom |
+| BLOC_OPERATOIRE | nom_bloc | Pas deux blocs avec le même nom |
+| CHAMBRE | (id_service, numero_chambre) | Numéro unique par service |
+| LIT | (id_chambre, numero_lit) | Numéro unique par chambre |
+| SERVICE | RPPS_chef | Un médecin ne peut être chef que d'un service |
+
+#### Contraintes temporelles (CHECK)
+
+| Entité/Association | Contrainte |
+|--------------------|-----------|
+| SEJOUR | date_sortie ≥ date_admission (si renseignée) |
+| PRESCRIPTION | date_fin ≥ date_debut (si renseignée) |
+| INTERVENTION | heure_fin > heure_debut (si renseignée) |
+| OCCUPE | date_fin ≥ date_debut (si renseignée) |
+| AFFECTE_A | date_fin ≥ date_debut (si renseignée) |
+
+#### Contraintes métier (via triggers)
+
+1. **Héritage exclusif** : Un PERSONNEL ne peut pas être à la fois MEDECIN et INFIRMIER
+2. **Occupation unique des lits** : Un LIT ne peut être occupé que par un seul SEJOUR à la fois (date_fin = NULL)
+3. **Mise à jour automatique de l'état du lit** : Quand un patient occupe un lit → état = 'Occupé', quand il part → état = 'Disponible'
+
+#### Contraintes de valeur
+
+| Entité | Attribut | Contrainte |
+|--------|----------|-----------|
+| CHAMBRE | capacite | Entre 1 et 6 |
+| ACTE_MEDICAL | tarif | ≥ 0 |
+| AFFECTE_A | taux_activite | Entre 0 et 100 |
+| FACTURE | quantite | > 0 |
+| COMPREND | ordre | > 0 |
+
 ---
 
 ## Partie 3 : Le schéma relationnel (MLD)
@@ -284,8 +397,8 @@ Si je devais améliorer le projet, j'ajouterais probablement :
 
 - `hopital_db_merise.sql` : le script SQL principal
 - `RAPPORT_TP_MCD_MERISE.md` : ce rapport
-- `MCD_MERISE_DOCUMENTATION.md` : documentation détaillée du MCD
-- `mocodo/` : fichiers pour visualiser le MCD avec l'outil Mocodo
+- `mocodo/hopital.mcd` : fichier pour visualiser le MCD avec l'outil Mocodo
+- `mcd_diagram.png` : capture d'écran du diagramme MCD
 
 ### Requêtes de test
 
