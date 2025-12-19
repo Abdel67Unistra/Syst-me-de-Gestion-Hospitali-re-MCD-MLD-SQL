@@ -2,6 +2,10 @@
 
 Projet de modélisation d'une base de données hospitalière avec la méthode MERISE.
 
+## Diagramme MCD
+
+![MCD Hopital](mcd_diagram.png)
+
 ## Contenu du projet
 
 - `hopital_db_merise.sql` : Script SQL complet (tables, triggers, vues, données test)

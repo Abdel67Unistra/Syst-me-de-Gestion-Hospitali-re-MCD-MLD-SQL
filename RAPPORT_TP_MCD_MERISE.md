@@ -45,6 +45,10 @@ J'ai noté plusieurs contraintes à respecter :
 
 ## Partie 2 : Le Modèle Conceptuel de Données
 
+### Diagramme MCD
+
+![MCD Hopital](mcd_diagram.png)
+
 ### Les entités que j'ai identifiées
 
 Au total, j'ai créé 13 entités. Voici les principales :
